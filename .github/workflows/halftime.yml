@@ -1,0 +1,51 @@
+   name: NBA halftime alerts
+
+   on:
+     schedule:
+       - cron: "30 15 * * *"   # every day, 15:30 UTC (8:30 am Phoenix), before the earliest tip-off
+     workflow_dispatch:
+       inputs:
+         test:
+           description: "Only send a test notification"
+           type: boolean
+           default: false
+
+   concurrency:
+     group: halftime-alerts
+     cancel-in-progress: false
+
+   env:
+     NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+
+   # One job can run for at most 6 hours, so three run back to back to cover
+   # the whole day. Each one exits early once every game is final.
+   jobs:
+     watch-1:
+       runs-on: ubuntu-latest
+       timeout-minutes: 355
+       steps:
+         - uses: actions/checkout@v4
+         - name: Test notification
+           if: ${{ inputs.test }}
+           run: python3 halftime_alerts.py --test
+         - name: Watch games
+           if: ${{ !inputs.test }}
+           run: python3 halftime_alerts.py --max-hours 5.5
+
+     watch-2:
+       needs: watch-1
+       if: ${{ always() && !inputs.test }}
+       runs-on: ubuntu-latest
+       timeout-minutes: 355
+       steps:
+         - uses: actions/checkout@v4
+         - run: python3 halftime_alerts.py --max-hours 5.5
+
+     watch-3:
+       needs: watch-2
+       if: ${{ always() && !inputs.test }}
+       runs-on: ubuntu-latest
+       timeout-minutes: 355
+       steps:
+         - uses: actions/checkout@v4
+         - run: python3 halftime_alerts.py --max-hours 5.5
